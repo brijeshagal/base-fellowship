@@ -56,6 +56,7 @@
     "@coinbase/agentkit": "^0.7.1",
     "@coinbase/agentkit-langchain": "^0.3.0",
     "@langchain/langgraph": "^0.2.67",
-    "@langchain/openai": "^0.5.10"
+    "@langchain/openai": "^0.5.10",
+    "dotenv": "^16.5.0"
   }
 }

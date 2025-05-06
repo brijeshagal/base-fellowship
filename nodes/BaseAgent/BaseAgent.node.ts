@@ -13,6 +13,11 @@ import {
 } from 'n8n-workflow';
 import { networkName } from '../constants/network';
 import { actionProviders } from '../utils/actionProviders';
+import dotenv from 'dotenv';
+import { privateKeyToAccount } from 'viem/accounts'
+
+
+dotenv.config();
 
 class BaseAgent implements INodeType {
 	description: INodeTypeDescription = {
@@ -197,12 +202,18 @@ class BaseAgent implements INodeType {
 			const chainId = 84532;
 			const networkId = networkName[chainId];
 
+			const credentials = await this.getCredentials('baseApi');
+			console.log("credentials: ", {credentials})
+
 			// Initialize Wallet Provider
 			const walletProvider = await CdpWalletProvider.configureWithWallet({
 				apiKeyName: process.env.CDP_API_KEY_NAME,
 				apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
 				networkId: networkId,
 			});
+
+			const account = await privateKeyToAccount(credentials.apiKeyPrivateKey);
+			console.log("account: ", {account})
 
 			// Initialize Base Agent Kit
 			const agentKit = await AgentKit.from({
@@ -269,7 +280,10 @@ class BaseAgent implements INodeType {
 								}
 							}
 							break;
-
+						case 'getWalletAddress':
+							result = account;
+							console.log("result: ", {result})
+							break;
 						default:
 							throw new NodeOperationError(
 								this.getNode(),
