@@ -1,21 +1,14 @@
-import { AgentKit, CdpWalletProvider } from '@coinbase/agentkit';
-import { getLangChainTools } from '@coinbase/agentkit-langchain';
-import { MemorySaver } from '@langchain/langgraph';
-import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { ChatOpenAI } from '@langchain/openai';
 import {
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 	NodeConnectionType,
-	NodeOperationError,
 } from 'n8n-workflow';
-import { networkName } from '../constants/network';
-import { actionProviders } from '../utils/actionProviders';
 import dotenv from 'dotenv';
-import { privateKeyToAccount } from 'viem/accounts'
-
+import { privateKeyToAccount } from 'viem/accounts';
+import { createPublicClient, http } from 'viem';
+import { base } from 'viem/chains';
 
 dotenv.config();
 
@@ -195,122 +188,112 @@ class BaseAgent implements INodeType {
 		try {
 			const items = this.getInputData();
 			const returnData: INodeExecutionData[] = [];
-			console.log("items: ", {items})
-
-			// Get credentials
-			// const credentials = await this.getCredentials('baseApi');
-			const chainId = 84532;
-			const networkId = networkName[chainId];
+			console.log("Beginning execution with items:", JSON.stringify(items, null, 2));
 
 			const credentials = await this.getCredentials('baseApi');
-			console.log("credentials: ", {credentials})
-
-			// Initialize Wallet Provider
-			const walletProvider = await CdpWalletProvider.configureWithWallet({
-				apiKeyName: process.env.CDP_API_KEY_NAME,
-				apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
-				networkId: networkId,
-			});
-
-			const account = await privateKeyToAccount(credentials.apiKeyPrivateKey);
-			console.log("account: ", {account})
-
-			// Initialize Base Agent Kit
-			const agentKit = await AgentKit.from({
-				walletProvider,
-				actionProviders,
-			});
-
-			const llm = new ChatOpenAI({
-				apiKey: process.env.OPENAI_API_KEY,
-				model: 'gpt-4-turbo-preview',
-				temperature: 0.7,
-			});
-
-			const tools = await getLangChainTools(agentKit);
-			const memory = new MemorySaver();
-
-			const agent = createReactAgent({
-				llm,
-				tools,
-				checkpointSaver: memory,
-				messageModifier: `You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. Be concise and helpful with your responses.`,
-			});
+			console.log(JSON.stringify(credentials, null, 2));
+			console.log("Credentials structure (no sensitive data):", JSON.stringify({
+				hasCredentials: !!credentials.privateKey,
+				hasPrivateKey: !!(credentials.privateKey),
+				hasRpcUrl: !!(credentials.rpcUrl)
+			}, null, 2));
 
 			for (let i = 0; i < items.length; i++) {
-				const operation = this.getNodeParameter('operation', i) as string;
 				try {
-					let result;
+					const operation = this.getNodeParameter('operation', i) as string;
+					console.log(`Processing operation: ${operation}`);
 
-					switch (operation) {
-						case 'getTokenBalances':
-							try {
-								// Retrieve the wallet address from node parameters
-								const walletAddress = this.getNodeParameter('walletAddress', i) as string;
-								if (!walletAddress) {
-									throw new NodeOperationError(
-										this.getNode(),
-										'Wallet address is required for getTokenBalances operation.',
-									);
-								}
-								console.log('Fetching token balances for wallet:', walletAddress);
+					if (operation === 'getWalletAddress') {
+						// Handle wallet address retrieval
+						const credentialsData = credentials as any;
+						const privateKey = credentialsData.privateKey;
 
-								// Construct the message for the agent
-								const message = {
-									messages: [
-										{
-											content: `Get all token balances for the wallet address ${walletAddress} on the Base network.`,
-											role: 'user',
-										},
-									],
-								};
+						if (!privateKey) {
+							throw new Error('Private key is missing from credentials');
+						}
 
-								// Stream the agent's response
-								const stream = await agent.stream(message, {
-									configurable: { thread_id: 'AgentKit Discussion' },
-								});
-								console.log({ stream });
+						console.log("Private key found, formatting...");
+						// Format the private key (add 0x prefix if needed)
+						const formattedKey = privateKey.startsWith('0x')
+							? privateKey
+							: `0x${privateKey}`;
 
-								console.log('Token balances:', result);
-							} catch (error) {
-								if (this.continueOnFail()) {
-									result = { error: error };
-								} else {
-									throw error;
+						console.log("Generating account from private key...");
+						// Create account and return address
+						const account = privateKeyToAccount(formattedKey as `0x${string}`);
+						console.log(`Account generated with address: ${account.address.substring(0, 10)}...`);
+
+						returnData.push({
+							json: {
+								success: true,
+								result: {
+									address: account.address
 								}
 							}
-							break;
-						case 'getWalletAddress':
-							result = account;
-							console.log("result: ", {result})
-							break;
-						default:
-							throw new NodeOperationError(
-								this.getNode(),
-								`The operation "${operation}" is not supported!`,
-							);
+						});
 					}
+					else if (operation === 'getTokenBalances') {
+						// Handle token balance retrieval
+						const walletAddress = this.getNodeParameter('walletAddress', i) as string;
+						if (!walletAddress) {
+							throw new Error('Wallet address is required');
+						}
 
-					returnData.push({
-						json: { result },
-					});
-				} catch (error) {
+						const credentialsData = credentials as any;
+						const rpcUrl = credentialsData.rpcUrl || 'https://base-mainnet.public.blastapi.io';
+
+						// Create public client for blockchain interactions
+						const client = createPublicClient({
+							chain: base,
+							transport: http(rpcUrl)
+						});
+
+						// Get native token balance
+						const balance = await client.getBalance({
+							address: walletAddress as `0x${string}`
+						});
+
+						returnData.push({
+							json: {
+								success: true,
+								result: {
+									address: walletAddress,
+									nativeBalance: balance.toString()
+								}
+							}
+						});
+					}
+					else {
+						throw new Error(`Operation '${operation}' is not implemented`);
+					}
+				} catch (itemError) {
+					console.error(`Error processing item ${i}:`, itemError);
 					if (this.continueOnFail()) {
 						returnData.push({
 							json: {
-								error: error || "",
-							},
+								success: false,
+								error: itemError.message
+							}
 						});
-						continue;
+					} else {
+						throw itemError;
 					}
-					throw error;
 				}
 			}
 
 			return [returnData];
 		} catch (e) {
-			console.log("execute function error: ",  {e})
-			return [];
+			console.error("Execution failed with error:", {
+				message: e.message,
+				stack: e.stack
+			});
+
+			return [[{
+				json: {
+					success: false,
+					error: e.message || "An unexpected error occurred"
+				}
+			}]];
 		}
 	}
 }
