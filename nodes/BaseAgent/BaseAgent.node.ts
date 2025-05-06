@@ -1,3 +1,8 @@
+import { AgentKit, CdpWalletProvider } from '@coinbase/agentkit';
+import { getLangChainTools } from '@coinbase/agentkit-langchain';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { ChatOpenAI } from '@langchain/openai';
+import dotenv from 'dotenv';
 import {
 	IExecuteFunctions,
 	INodeExecutionData,
@@ -5,8 +10,6 @@ import {
 	INodeTypeDescription,
 	NodeConnectionType,
 } from 'n8n-workflow';
-import dotenv from 'dotenv';
-import { privateKeyToAccount } from 'viem/accounts';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 
@@ -188,15 +191,47 @@ class BaseAgent implements INodeType {
 		try {
 			const items = this.getInputData();
 			const returnData: INodeExecutionData[] = [];
-			console.log("Beginning execution with items:", JSON.stringify(items, null, 2));
+			console.log('Beginning execution with items:', JSON.stringify(items, null, 2));
 
 			const credentials = await this.getCredentials('baseApi');
 			console.log(JSON.stringify(credentials, null, 2));
-			console.log("Credentials structure (no sensitive data):", JSON.stringify({
-				hasCredentials: !!credentials.privateKey,
-				hasPrivateKey: !!(credentials.privateKey),
-				hasRpcUrl: !!(credentials.rpcUrl)
-			}, null, 2));
+			console.log(
+				'Credentials structure (no sensitive data):',
+				JSON.stringify(
+					{
+						hasCredentials: !!credentials.privateKey,
+						hasPrivateKey: !!credentials.privateKey,
+						hasRpcUrl: !!credentials.rpcUrl,
+					},
+					null,
+					2,
+				),
+			);
+
+			const walletProvider = await CdpWalletProvider.configureWithWallet({
+				apiKeyName: 'brijesh',
+				apiKeyPrivateKey: credentials.privateKey as string,
+				networkId: 'base-sepolia',
+			});
+
+			const agentKit = await AgentKit.from({
+				walletProvider,
+				cdpApiKeyName: process.env.CDP_API_KEY_NAME,
+				cdpApiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+			});
+
+			const tools = await getLangChainTools(agentKit);
+
+			const llm = new ChatOpenAI({
+				model: 'gpt-4o-mini',
+			});
+
+			const agent = createReactAgent({
+				llm,
+				tools,
+			});
+
+			agent;
 
 			for (let i = 0; i < items.length; i++) {
 				try {
@@ -205,34 +240,17 @@ class BaseAgent implements INodeType {
 
 					if (operation === 'getWalletAddress') {
 						// Handle wallet address retrieval
-						const credentialsData = credentials as any;
-						const privateKey = credentialsData.privateKey;
-
-						if (!privateKey) {
-							throw new Error('Private key is missing from credentials');
-						}
-
-						console.log("Private key found, formatting...");
-						// Format the private key (add 0x prefix if needed)
-						const formattedKey = privateKey.startsWith('0x')
-							? privateKey
-							: `0x${privateKey}`;
-
-						console.log("Generating account from private key...");
-						// Create account and return address
-						const account = privateKeyToAccount(formattedKey as `0x${string}`);
-						console.log(`Account generated with address: ${account.address.substring(0, 10)}...`);
+						const result = walletProvider.getAddress();
 
 						returnData.push({
 							json: {
 								success: true,
 								result: {
-									address: account.address
-								}
-							}
+									address: result,
+								},
+							},
 						});
-					}
-					else if (operation === 'getTokenBalances') {
+					} else if (operation === 'getTokenBalances') {
 						// Handle token balance retrieval
 						const walletAddress = this.getNodeParameter('walletAddress', i) as string;
 						if (!walletAddress) {
@@ -245,12 +263,12 @@ class BaseAgent implements INodeType {
 						// Create public client for blockchain interactions
 						const client = createPublicClient({
 							chain: base,
-							transport: http(rpcUrl)
+							transport: http(rpcUrl),
 						});
 
 						// Get native token balance
 						const balance = await client.getBalance({
-							address: walletAddress as `0x${string}`
+							address: walletAddress as `0x${string}`,
 						});
 
 						returnData.push({
@@ -258,12 +276,11 @@ class BaseAgent implements INodeType {
 								success: true,
 								result: {
 									address: walletAddress,
-									nativeBalance: balance.toString()
-								}
-							}
+									nativeBalance: balance.toString(),
+								},
+							},
 						});
-					}
-					else {
+					} else {
 						throw new Error(`Operation '${operation}' is not implemented`);
 					}
 				} catch (itemError) {
@@ -272,8 +289,8 @@ class BaseAgent implements INodeType {
 						returnData.push({
 							json: {
 								success: false,
-								error: itemError.message
-							}
+								error: itemError.message,
+							},
 						});
 					} else {
 						throw itemError;
@@ -283,17 +300,21 @@ class BaseAgent implements INodeType {
 
 			return [returnData];
 		} catch (e) {
-			console.error("Execution failed with error:", {
+			console.error('Execution failed with error:', {
 				message: e.message,
-				stack: e.stack
+				stack: e.stack,
 			});
 
-			return [[{
-				json: {
-					success: false,
-					error: e.message || "An unexpected error occurred"
-				}
-			}]];
+			return [
+				[
+					{
+						json: {
+							success: false,
+							error: e.message || 'An unexpected error occurred',
+						},
+					},
+				],
+			];
 		}
 	}
 }
