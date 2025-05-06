@@ -8,6 +8,7 @@ import {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
+	NodeConnectionType,
 	NodeOperationError,
 } from 'n8n-workflow';
 import { networkName } from '../constants/network';
@@ -25,8 +26,21 @@ class BaseAgent implements INodeType {
 		defaults: {
 			name: 'Base Agent',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [
+			{
+				displayName: 'Input',
+				maxConnections: 1,
+				required: true,
+				type: NodeConnectionType.Main,
+			},
+		],
+		outputs: [
+			{
+				displayName: 'Output',
+				maxConnections: 1,
+				type: NodeConnectionType.Main,
+			},
+		],
 		credentials: [
 			{
 				name: 'baseApi',
@@ -176,41 +190,42 @@ class BaseAgent implements INodeType {
 		try {
 			const items = this.getInputData();
 			const returnData: INodeExecutionData[] = [];
-			
+			console.log("items: ", {items})
+
 			// Get credentials
 			// const credentials = await this.getCredentials('baseApi');
 			const chainId = 84532;
 			const networkId = networkName[chainId];
-			
+
 			// Initialize Wallet Provider
 			const walletProvider = await CdpWalletProvider.configureWithWallet({
 				apiKeyName: process.env.CDP_API_KEY_NAME,
 				apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
 				networkId: networkId,
 			});
-			
+
 			// Initialize Base Agent Kit
 			const agentKit = await AgentKit.from({
 				walletProvider,
 				actionProviders,
 			});
-			
+
 			const llm = new ChatOpenAI({
 				apiKey: process.env.OPENAI_API_KEY,
 				model: 'gpt-4-turbo-preview',
 				temperature: 0.7,
 			});
-			
+
 			const tools = await getLangChainTools(agentKit);
 			const memory = new MemorySaver();
-			
+
 			const agent = createReactAgent({
 				llm,
 				tools,
 				checkpointSaver: memory,
 				messageModifier: `You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. Be concise and helpful with your responses.`,
 			});
-			
+
 			for (let i = 0; i < items.length; i++) {
 				const operation = this.getNodeParameter('operation', i) as string;
 				try {
