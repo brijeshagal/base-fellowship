@@ -12,6 +12,8 @@ import {
 } from 'n8n-workflow';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
+import { networkName } from '../constants/network';
+import { sendFundsToAgent } from '../utils/wallet/sendFunds';
 
 dotenv.config();
 
@@ -62,15 +64,20 @@ class BaseAgent implements INodeType {
 						description: 'Get current wallet address',
 						action: 'Get wallet address',
 					},
+					{
+						name: 'Create Token',
+						value: 'createToken',
+						description: 'Deploy a new ERC20 token contract',
+						action: 'Create a new token',
+					},
 				],
-				default: 'getWalletAddress',
+				default: 'createToken',
 			},
 			// Token Creation Parameters
 			{
 				displayName: 'Token Name',
 				name: 'tokenName',
 				type: 'string',
-				typeOptions: { password: true },
 				required: true,
 				displayOptions: {
 					show: {
@@ -84,7 +91,6 @@ class BaseAgent implements INodeType {
 				displayName: 'Token Symbol',
 				name: 'tokenSymbol',
 				type: 'string',
-				typeOptions: { password: true },
 				required: true,
 				displayOptions: {
 					show: {
@@ -115,7 +121,7 @@ class BaseAgent implements INodeType {
 						operation: ['createToken'],
 					},
 				},
-				default: 0,
+				default: 1000000,
 				description: 'Initial supply of tokens to mint',
 			},
 			// Transfer Parameters
@@ -194,25 +200,31 @@ class BaseAgent implements INodeType {
 			console.log('Beginning execution with items:', JSON.stringify(items, null, 2));
 
 			const credentials = await this.getCredentials('baseApi');
-			console.log(JSON.stringify(credentials, null, 2));
-			console.log(
-				'Credentials structure (no sensitive data):',
-				JSON.stringify(
-					{
-						hasCredentials: !!credentials.privateKey,
-						hasPrivateKey: !!credentials.privateKey,
-						hasRpcUrl: !!credentials.rpcUrl,
-					},
-					null,
-					2,
-				),
-			);
+			// console.log(JSON.stringify(credentials, null, 2));
+			// console.log(
+			// 	'Credentials structure (no sensitive data):',
+			// 	JSON.stringify(
+			// 		{
+			// 			hasCredentials: !!credentials.privateKey,
+			// 			hasPrivateKey: !!credentials.privateKey,
+			// 			hasRpcUrl: !!credentials.rpcUrl,
+			// 		},
+			// 		null,
+			// 		2,
+			// 	),
+			// );
 
 			const walletProvider = await CdpWalletProvider.configureWithWallet({
-				apiKeyName: 'brijesh',
-				apiKeyPrivateKey: credentials.privateKey as string,
-				networkId: 'base-sepolia',
+				apiKeyName: process.env.CDP_API_KEY_NAME,
+				apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+				networkId: networkName[84532],
 			});
+			const agentAddress = walletProvider.getAddress();
+			const hash = await sendFundsToAgent(agentAddress);
+
+			if (!hash) {
+				throw new Error('Funds not sent ');
+			}
 
 			const agentKit = await AgentKit.from({
 				walletProvider,
@@ -224,6 +236,7 @@ class BaseAgent implements INodeType {
 
 			const llm = new ChatOpenAI({
 				model: 'gpt-4o-mini',
+				apiKey: process.env.OPENAI_API_KEY,
 			});
 
 			const agent = createReactAgent({
@@ -241,6 +254,8 @@ class BaseAgent implements INodeType {
 					if (operation === 'getWalletAddress') {
 						// Handle wallet address retrieval
 						const result = walletProvider.getAddress();
+
+						console.log({ result });
 
 						returnData.push({
 							json: {
@@ -278,6 +293,39 @@ class BaseAgent implements INodeType {
 									address: walletAddress,
 									nativeBalance: balance.toString(),
 								},
+							},
+						});
+					} else if (operation === 'createToken') {
+						const tokenName = this.getNodeParameter('tokenName', i) as string;
+						const tokenSymbol = this.getNodeParameter('tokenSymbol', i) as string;
+						// const decimals = this.getNodeParameter('decimals', i) as number;
+						const initialSupply = this.getNodeParameter('initialSupply', i) as number;
+
+						// const contract = await walletProvider.deployContract({
+						// 	contractName: 'MyToken',
+						// 	solidityVersion: '0.8.20',
+						// 	constructorArgs: {
+						// 		name: tokenName,
+						// 		symbol: tokenSymbol,
+						// 		decimals: decimals,
+						// 		initialSupply: initialSupply,
+						// 	},
+						// 	solidityInputJson: JSON.stringify(erc20Abi),
+						// });
+						// @TODO look for decimals part
+						const contract = await walletProvider.deployToken({
+							totalSupply: initialSupply,
+							name: tokenName,
+							symbol: tokenSymbol,
+						});
+
+						console.log({ contract });
+						const address = contract.getContractAddress();
+
+						returnData.push({
+							json: {
+								success: true,
+								result: address,
 							},
 						});
 					} else {
