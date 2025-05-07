@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { createWalletClient, http, parseEther } from 'viem';
 import { Address, privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
+import { getPublicClient } from '../clients';
 
 dotenv.config();
 
@@ -19,6 +20,10 @@ export async function sendFundsToAgent(agentAddress: string) {
 		value,
 		to: agentAddress as Address,
 	});
+	const res = await getPublicClient().waitForTransactionReceipt({ hash });
 	console.log('Txn hash: ', hash);
-	return hash;
+	if (res.status === 'success') {
+		return hash;
+	}
+	return undefined;
 }

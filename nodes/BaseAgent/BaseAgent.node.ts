@@ -12,8 +12,8 @@ import {
 } from 'n8n-workflow';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
-import { networkName } from '../constants/network';
-import { sendFundsToAgent } from '../utils/wallet/sendFunds';
+import { networkName } from './constants/network';
+import { sendFundsToAgent } from './utils/wallet/sendFunds';
 
 dotenv.config();
 
