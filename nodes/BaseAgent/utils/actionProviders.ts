@@ -20,6 +20,7 @@ export const actionProviders: ActionProvider[] = [
 	pythActionProvider(),
 	walletActionProvider(),
 	erc20ActionProvider(),
+	// customActionProvider()
 ];
 
 export {};

@@ -20,7 +20,7 @@ export async function sendFundsToAgent(agentAddress: string) {
 		value,
 		to: agentAddress as Address,
 	});
-	const res = await getPublicClient().waitForTransactionReceipt({ hash });
+	const res = await getPublicClient(84532).waitForTransactionReceipt({ hash });
 	console.log('Txn hash: ', hash);
 	if (res.status === 'success') {
 		return hash;
