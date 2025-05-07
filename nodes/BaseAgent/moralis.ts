@@ -3,11 +3,16 @@ import Moralis from 'moralis';
 import { toHex } from 'viem';
 dotenv.config();
 
+let isMoralisInitialized = false;
+
 export async function getTokenFromTicker(symbol: string) {
 	try {
-		await Moralis.start({
-			apiKey: process.env.MORALIS_API_KEY,
-		});
+		if (!isMoralisInitialized) {
+			await Moralis.start({
+				apiKey: process.env.MORALIS_API_KEY,
+			});
+			isMoralisInitialized = true;
+		}
 
 		const response = await Moralis.EvmApi.token.getTokenMetadataBySymbol({
 			symbols: [symbol],
@@ -15,7 +20,9 @@ export async function getTokenFromTicker(symbol: string) {
 		});
 
 		console.log(response.raw[0]);
-		return response.raw[0] as any;
+		if (response.raw[0]) {
+			return response.raw[0] as any;
+		}
 	} catch (e) {
 		console.error(e);
 		return {};

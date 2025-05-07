@@ -18,6 +18,7 @@ import { getWalletClient } from './utils/clients';
 dotenv.config();
 
 class BaseAgent implements INodeType {
+	moralisInitialized: boolean = false;
 	description: INodeTypeDescription = {
 		displayName: 'Base Agent',
 		name: 'baseAgent',
@@ -336,10 +337,17 @@ class BaseAgent implements INodeType {
 					} else if (operation === 'swapToken') {
 						const fromToken = this.getNodeParameter('fromToken', i) as string;
 						const toToken = this.getNodeParameter('toToken', i) as string;
-						const amount = this.getNodeParameter('amount', i) as string;
+						const amount = this.getNodeParameter('amount', i)?.toString() as string;
+						console.log({ amount });
 						const slippage = this.getNodeParameter('slippage', i, 0.5) as number;
-						const inputToken = await getTokenFromTicker(fromToken);
-						const outputToken = await getTokenFromTicker(toToken);
+						const inputToken =
+							fromToken.toLowerCase() === 'eth'
+								? { address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18 }
+								: await getTokenFromTicker(fromToken);
+						const outputToken =
+							toToken.toLowerCase() === 'eth'
+								? { address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18 }
+								: await getTokenFromTicker(toToken);
 						data['sendTo'] = walletClient.account?.address;
 						data['inputToken'] = inputToken.address;
 						data['outputToken'] = outputToken.address;
@@ -358,7 +366,7 @@ class BaseAgent implements INodeType {
 						maxSteps: 10, // Maximum number of tool invocations per request
 						prompt: prompt,
 						onStepFinish: (event) => {
-							console.log(event.toolResults);
+							console.log('Event finished tool results: ', event.toolResults);
 						},
 					});
 					console.log(`Processing operation: ${operation}`);
