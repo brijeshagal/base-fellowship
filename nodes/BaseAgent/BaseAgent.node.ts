@@ -1,8 +1,5 @@
-import { openai } from '@ai-sdk/openai';
-import { getOnChainTools } from '@goat-sdk/adapter-vercel-ai';
-import { zeroEx } from '@goat-sdk/plugin-0x';
 import { viem } from '@goat-sdk/wallet-viem';
-import { generateText, ToolSet } from 'ai';
+import { ChainId, createConfig, getQuote } from '@lifi/sdk';
 import dotenv from 'dotenv';
 import {
 	IExecuteFunctions,
@@ -11,9 +8,13 @@ import {
 	INodeTypeDescription,
 	NodeConnectionType,
 } from 'n8n-workflow';
-import { parseUnits } from 'viem';
+import { Address, Hash, parseUnits, zeroAddress } from 'viem';
 import { getTokenFromTicker } from './moralis';
-import { getWalletClient } from './utils/clients';
+import { getWalletClient, viemChainsById } from './utils/clients';
+
+createConfig({
+	integrator: 'buildr',
+});
 
 dotenv.config();
 
@@ -256,7 +257,7 @@ class BaseAgent implements INodeType {
 		try {
 			const chainId = 8453;
 			const items = this.getInputData();
-			console.log({ items });
+			console.log(items[0]);
 
 			const returnData: INodeExecutionData[] = [];
 			console.log('Beginning execution with items:', JSON.stringify(items, null, 2));
@@ -281,7 +282,7 @@ class BaseAgent implements INodeType {
 			// 	apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
 			// 	networkId: networkName[84532],
 			// });
-			const walletClient = getWalletClient(chainId);
+			const { account, walletClient } = getWalletClient(chainId);
 			const wallet = viem(walletClient);
 			// const agentAddress = walletProvider.getAddress();
 			// const hash = await sendFundsToAgent(agentAddress);
@@ -292,14 +293,22 @@ class BaseAgent implements INodeType {
 
 			for (let i = 0; i < items.length; i++) {
 				try {
-					const tools = await getOnChainTools({
-						wallet,
-						plugins: [
-							zeroEx({
-								apiKey: process.env.ZEROEX_API_KEY as string,
-							}),
-						],
-					});
+					// const inputToken = {
+					// 	decimals: number;
+					// 	symbol: string;
+					// 	name: string;
+					// 	chains: {}
+					// };
+					// const tools = await getOnChainTools({
+					// 	wallet,
+					// 	plugins: [
+					// 		// sendETH(),
+					// 		zeroEx({
+					// 			apiKey: process.env.ZEROEX_API_KEY as string,
+					// 		}),
+					// 		erc20({ tokens: [USDC, PEPE] }),
+					// 	],
+					// });
 					// const agentKit = await AgentKit.from({
 					// 	walletProvider,
 					// 	cdpApiKeyName: process.env.CDP_API_KEY_NAME,
@@ -322,7 +331,7 @@ class BaseAgent implements INodeType {
 					// const agentConfig = { configurable: { thread_id: 'CDP Agentkit Chatbot API' } };
 					const operation = this.getNodeParameter('operation', i) as string;
 					const data: Record<string, any> = {};
-					let prompt = `${operation} on ${chainId} on EVM. `;
+					let result = '';
 
 					if (operation === 'createToken') {
 						const tokenName = this.getNodeParameter('tokenName', i) as string;
@@ -342,33 +351,54 @@ class BaseAgent implements INodeType {
 						const slippage = this.getNodeParameter('slippage', i, 0.5) as number;
 						const inputToken =
 							fromToken.toLowerCase() === 'eth'
-								? { address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18 }
+								? { address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18 }
 								: await getTokenFromTicker(fromToken);
 						const outputToken =
 							toToken.toLowerCase() === 'eth'
-								? { address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', decimals: 18 }
+								? { address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18 }
 								: await getTokenFromTicker(toToken);
 						data['sendTo'] = walletClient.account?.address;
 						data['inputToken'] = inputToken.address;
 						data['outputToken'] = outputToken.address;
 						data['amount'] = parseUnits(amount, inputToken.decimals);
+
 						data['slippage'] = slippage;
-						data['fromChainId'] = chainId;
-						data['toChainId'] = chainId;
+						data['chainId'] = chainId;
+						// data['toChainId'] = chainId;
 						console.log({ data });
-						// prompt += `Use across to bridge and make the transaction. `;
+
+						const quote = await getQuote({
+							fromAddress: wallet.getAddress(),
+							fromChain: ChainId.BAS,
+							toChain: ChainId.BAS,
+							fromToken: inputToken.address,
+							toToken: outputToken.address,
+							fromAmount: parseUnits(amount, inputToken.decimals).toString(),
+						});
+						console.log(quote.transactionRequest?.data);
+						console.log('Txn value: ', quote.transactionRequest?.value);
+						await walletClient.sendTransaction({
+							account,
+							chain: viemChainsById[ChainId.BAS],
+							data: quote.transactionRequest?.data as Hash,
+							value:
+								inputToken.address === zeroAddress
+									? BigInt(quote.transactionRequest?.value || '0')
+									: undefined,
+							to: quote.action.toAddress as Address,
+						});
 					}
-					prompt += `Use the following details: ${JSON.stringify(data)}. Proceed with no checks, and directly make the transaction with whatever details are provided. Let it fail if it fails!`;
-					console.log({ prompt });
-					const result = await generateText({
-						model: openai('gpt-4o-mini'),
-						tools: tools as ToolSet,
-						maxSteps: 10, // Maximum number of tool invocations per request
-						prompt: prompt,
-						onStepFinish: (event) => {
-							console.log('Event finished tool results: ', event.toolResults);
-						},
-					});
+					// prompt += `Use the following details: ${JSON.stringify(data)}. Proceed with no checks, and directly make the transaction with whatever details are provided. Let it fail if it fails!`;
+					// console.log({ prompt });
+					// const result = await generateText({
+					// 	model: openai('gpt-4o-mini'),
+					// 	tools: tools as ToolSet,
+					// 	maxSteps: 10, // Maximum number of tool invocations per request
+					// 	prompt: 'Swap 1 USDC for PEPE',
+					// 	onStepFinish: (event) => {
+					// 		console.log('Event finished tool results: ', event.toolResults);
+					// 	},
+					// });
 					console.log(`Processing operation: ${operation}`);
 
 					// const stream = await agent.stream({ messages: [new HumanMessage(prompt)] }, agentConfig);

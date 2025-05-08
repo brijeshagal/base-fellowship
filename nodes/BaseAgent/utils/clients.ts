@@ -1,6 +1,9 @@
-import { Address, createPublicClient, createWalletClient, http, WalletClient } from 'viem';
+import dotenv from 'dotenv';
+import { Account, Address, createPublicClient, createWalletClient, http, WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as allViemChains from 'viem/chains';
+
+dotenv.config();
 
 export const viemChainsById: Record<number, allViemChains.Chain> = Object.values(
 	allViemChains,
@@ -20,11 +23,16 @@ export const getPublicClient = (chainId: number) => {
 	});
 };
 
-export const getWalletClient = (chainId: number): WalletClient => {
+export const getWalletClient = (
+	chainId: number,
+): { account: Account; walletClient: WalletClient } => {
 	const account = privateKeyToAccount(process.env.PRIV_KEY as Address);
-	return createWalletClient({
-		transport: http(),
+	return {
 		account,
-		chain: viemChainsById[chainId],
-	});
+		walletClient: createWalletClient({
+			transport: http(process.env.ALCHEMY_BASE_API),
+			account,
+			chain: viemChainsById[chainId],
+		}),
+	};
 };
