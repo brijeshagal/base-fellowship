@@ -8,9 +8,9 @@ import {
 	INodeTypeDescription,
 	NodeConnectionType,
 } from 'n8n-workflow';
-import { Address, Hash, parseUnits, zeroAddress } from 'viem';
+import { Address, erc20Abi, formatUnits, Hash, maxUint256, parseUnits, zeroAddress } from 'viem';
 import { getTokenFromTicker } from './moralis';
-import { getWalletClient, viemChainsById } from './utils/clients';
+import { getPublicClient, getWalletClient, viemChainsById } from './utils/clients';
 
 createConfig({
 	integrator: 'buildr',
@@ -331,7 +331,6 @@ class BaseAgent implements INodeType {
 					// const agentConfig = { configurable: { thread_id: 'CDP Agentkit Chatbot API' } };
 					const operation = this.getNodeParameter('operation', i) as string;
 					const data: Record<string, any> = {};
-					let result = '';
 
 					if (operation === 'createToken') {
 						const tokenName = this.getNodeParameter('tokenName', i) as string;
@@ -344,18 +343,19 @@ class BaseAgent implements INodeType {
 						data['decimals'] = decimals;
 						data['initialSupply'] = initialSupply;
 					} else if (operation === 'swapToken') {
+						const publicClient = getPublicClient(chainId);
+
 						const fromToken = this.getNodeParameter('fromToken', i) as string;
 						const toToken = this.getNodeParameter('toToken', i) as string;
 						const amount = this.getNodeParameter('amount', i)?.toString() as string;
-						console.log({ amount });
 						const slippage = this.getNodeParameter('slippage', i, 0.5) as number;
 						const inputToken =
 							fromToken.toLowerCase() === 'eth'
-								? { address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18 }
+								? { address: zeroAddress, decimals: 18 }
 								: await getTokenFromTicker(fromToken);
 						const outputToken =
 							toToken.toLowerCase() === 'eth'
-								? { address: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', decimals: 18 }
+								? { address: zeroAddress, decimals: 18 }
 								: await getTokenFromTicker(toToken);
 						data['sendTo'] = walletClient.account?.address;
 						data['inputToken'] = inputToken.address;
@@ -375,18 +375,60 @@ class BaseAgent implements INodeType {
 							toToken: outputToken.address,
 							fromAmount: parseUnits(amount, inputToken.decimals).toString(),
 						});
-						console.log(quote.transactionRequest?.data);
-						console.log('Txn value: ', quote.transactionRequest?.value);
-						await walletClient.sendTransaction({
+
+						if (inputToken.address !== zeroAddress) {
+							const approvedAmt = await publicClient.readContract({
+								abi: erc20Abi,
+								functionName: 'allowance',
+								address: inputToken.address,
+								args: [account.address, quote.estimate.approvalAddress as Address],
+							});
+							if (approvedAmt < BigInt(quote.estimate.fromAmount)) {
+								const approvalHash = await walletClient.writeContract({
+									account,
+									chain: viemChainsById[ChainId.BAS],
+									address: inputToken.address,
+									args: [quote.estimate.approvalAddress as Address, maxUint256],
+									functionName: 'approve',
+									abi: erc20Abi,
+								});
+
+								const approvalRes = await publicClient.waitForTransactionReceipt({
+									hash: approvalHash,
+								});
+								if (approvalRes.status !== 'success') {
+									throw new Error('Approval failed');
+								}
+							}
+						}
+						const hash = await walletClient.sendTransaction({
 							account,
 							chain: viemChainsById[ChainId.BAS],
 							data: quote.transactionRequest?.data as Hash,
 							value:
-								inputToken.address === zeroAddress
-									? BigInt(quote.transactionRequest?.value || '0')
-									: undefined,
-							to: quote.action.toAddress as Address,
+								inputToken.address === zeroAddress ? BigInt(quote.estimate.fromAmount) : undefined,
+							to: quote.estimate.approvalAddress as Address,
 						});
+						const txnReceipt = await publicClient.waitForTransactionReceipt({
+							hash,
+						});
+						if (txnReceipt.status === 'success') {
+							const receivedAmount = await publicClient.readContract({
+								abi: erc20Abi,
+								functionName: 'balanceOf',
+								address: outputToken.address,
+								args: [account.address],
+							});
+							returnData.push({
+								json: {
+									success: true,
+									result: {
+										txnReceipt,
+										receivedAmount: formatUnits(receivedAmount, outputToken.decimals),
+									},
+								},
+							});
+						}
 					}
 					// prompt += `Use the following details: ${JSON.stringify(data)}. Proceed with no checks, and directly make the transaction with whatever details are provided. Let it fail if it fails!`;
 					// console.log({ prompt });
@@ -413,12 +455,6 @@ class BaseAgent implements INodeType {
 					// 		response += chunk.tools.messages[0].content + '\n';
 					// 	}
 					// }
-					returnData.push({
-						json: {
-							success: true,
-							result,
-						},
-					});
 					// if (operation === 'getWalletAddress') {
 					// 	// Handle wallet address retrieval
 					// 	const result = walletProvider.getAddress();
