@@ -16,7 +16,7 @@ export const nodeDescription: INodeTypeDescription = {
     outputs: [NodeConnectionType.Main],
     credentials: [
         {
-            name: 'baseApi',
+            name: 'privateKey',
             required: true,
         },
     ],

@@ -1,5 +1,12 @@
 import dotenv from 'dotenv';
-import { Account, Address, createPublicClient, createWalletClient, http, WalletClient } from 'viem';
+import {
+	Account,
+	createPublicClient,
+	createWalletClient,
+	Hex,
+	http,
+	WalletClient
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as allViemChains from 'viem/chains';
 
@@ -25,8 +32,9 @@ export const getPublicClient = (chainId: number) => {
 
 export const getWalletClient = (
 	chainId: number,
+	privKey: Hex,
 ): { account: Account; walletClient: WalletClient } => {
-	const account = privateKeyToAccount(process.env.PRIV_KEY as Address);
+	const account = privateKeyToAccount(privKey);
 	return {
 		account,
 		walletClient: createWalletClient({

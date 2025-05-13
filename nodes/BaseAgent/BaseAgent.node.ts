@@ -1,9 +1,15 @@
-import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
+import {
+	IExecuteFunctions,
+	INodeExecutionData,
+	INodeType,
+	INodeTypeDescription,
+} from 'n8n-workflow';
+import { Hex } from 'viem';
 import { nodeDescription } from './config/description';
-import { getTokenDetails } from './functions/getTokenDetails';
+import { DEFAULT_CHAIN_ID, OPERATIONS } from './constants';
 import { createToken } from './functions/createToken';
+import { getTokenDetails } from './functions/getTokenDetails';
 import { swapToken } from './functions/swapToken';
-import { OPERATIONS, DEFAULT_CHAIN_ID } from './constants';
 
 export class BaseAgent implements INodeType {
 	description: INodeTypeDescription = nodeDescription;
@@ -11,6 +17,14 @@ export class BaseAgent implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
+
+		// Get the private key from credentials
+		const credentials = await this.getCredentials('privateKey');
+		if (!credentials?.privateKey) {
+			throw new Error('Private key is required');
+		}
+
+		const privateKey = credentials.privateKey as Hex;
 
 		for (let i = 0; i < items.length; i++) {
 			try {
@@ -27,12 +41,16 @@ export class BaseAgent implements INodeType {
 						const name = this.getNodeParameter('name', i) as string;
 						const symbol = this.getNodeParameter('symbol', i) as string;
 						const totalSupply = this.getNodeParameter('totalSupply', i) as number;
-						result = await createToken({
-							tokenName: name,
-							tokenSymbol: symbol,
-							decimals: 18,
-							initialSupply: totalSupply,
-						}, DEFAULT_CHAIN_ID);
+						result = await createToken(
+							{
+								tokenName: name,
+								tokenSymbol: symbol,
+								decimals: 18,
+								initialSupply: totalSupply,
+							},
+							DEFAULT_CHAIN_ID,
+							privateKey,
+						);
 						break;
 
 					case OPERATIONS.SWAP_TOKEN:
@@ -40,12 +58,16 @@ export class BaseAgent implements INodeType {
 						const toToken = this.getNodeParameter('toToken', i) as string;
 						const amount = this.getNodeParameter('amount', i) as number;
 						const slippage = this.getNodeParameter('slippage', i) as number;
-						result = await swapToken({
-							fromToken,
-							toToken,
-							amount: amount.toString(),
-							slippage,
-						}, DEFAULT_CHAIN_ID);
+						result = await swapToken(
+							{
+								fromToken,
+								toToken,
+								amount: amount.toString(),
+								slippage,
+							},
+							DEFAULT_CHAIN_ID,
+							privateKey,
+						);
 						break;
 
 					default:

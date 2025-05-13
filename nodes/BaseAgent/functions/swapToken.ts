@@ -1,6 +1,15 @@
 import { viem } from '@goat-sdk/wallet-viem';
 import { ChainId, getQuote } from '@lifi/sdk';
-import { Address, erc20Abi, formatUnits, Hash, maxUint256, parseUnits, zeroAddress } from 'viem';
+import {
+	Address,
+	erc20Abi,
+	formatUnits,
+	Hash,
+	Hex,
+	maxUint256,
+	parseUnits,
+	zeroAddress,
+} from 'viem';
 import { getTokenFromTicker } from '../moralis';
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 
@@ -11,8 +20,12 @@ export interface SwapTokenParams {
 	slippage: number;
 }
 
-export async function swapToken(params: SwapTokenParams, chainId: number): Promise<any> {
-	const { account, walletClient } = getWalletClient(chainId);
+export async function swapToken(
+	params: SwapTokenParams,
+	chainId: number,
+	privKey: Hex,
+): Promise<any> {
+	const { account, walletClient } = getWalletClient(chainId, privKey);
 	const publicClient = getPublicClient(chainId);
 	const wallet = viem(walletClient);
 
