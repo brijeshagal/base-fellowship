@@ -8,7 +8,16 @@ import {
 	INodeTypeDescription,
 	NodeConnectionType,
 } from 'n8n-workflow';
-import { Address, erc20Abi, formatUnits, Hash, maxUint256, parseUnits, zeroAddress } from 'viem';
+import {
+	Address,
+	erc20Abi,
+	formatUnits,
+	Hash,
+	Hex,
+	maxUint256,
+	parseUnits,
+	zeroAddress,
+} from 'viem';
 import { getTokenFromTicker } from './moralis';
 import { getPublicClient, getWalletClient, viemChainsById } from './utils/clients';
 
@@ -342,6 +351,28 @@ class BaseAgent implements INodeType {
 						data['tokenSymbol'] = tokenSymbol;
 						data['decimals'] = decimals;
 						data['initialSupply'] = initialSupply;
+						const publicClient = getPublicClient(chainId);
+						const bytecode = await publicClient.getCode({
+							address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+						});
+						const hash = await walletClient.deployContract({
+							abi: erc20Abi,
+							account,
+							args: [tokenName, tokenSymbol, decimals, initialSupply],
+							chain: viemChainsById[chainId],
+							bytecode: bytecode as Hex,
+						});
+						const txnReceipt = await getPublicClient(chainId).waitForTransactionReceipt({ hash });
+						if (txnReceipt.status === 'success') {
+							returnData.push({
+								json: {
+									success: true,
+									result: {
+										txnReceipt,
+									},
+								},
+							});
+						}
 					} else if (operation === 'swapToken') {
 						const publicClient = getPublicClient(chainId);
 
