@@ -5,28 +5,15 @@ export const nodeDescription: INodeTypeDescription = {
     displayName: 'Base Agent',
     name: 'baseAgent',
     icon: 'file:base.svg',
-    group: ['blockchain'],
+    group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["operation"]}}',
-    description: 'Interact with Base onchain AI agents',
+    description: 'Interact with Base on-chain AI agents',
     defaults: {
         name: 'Base Agent',
     },
-    inputs: [
-        {
-            displayName: 'Input',
-            maxConnections: 1,
-            required: true,
-            type: NodeConnectionType.Main,
-        },
-    ],
-    outputs: [
-        {
-            displayName: 'Output',
-            maxConnections: 1,
-            type: NodeConnectionType.Main,
-        },
-    ],
+    inputs: [NodeConnectionType.Main],
+    outputs: [NodeConnectionType.Main],
     credentials: [
         {
             name: 'baseApi',

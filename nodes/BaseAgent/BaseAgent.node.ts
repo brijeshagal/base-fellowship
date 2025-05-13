@@ -1,21 +1,12 @@
-import { createConfig } from '@lifi/sdk';
-import dotenv from 'dotenv';
-import { IExecuteFunctions, INodeExecutionData, INodeType } from 'n8n-workflow';
+import { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
 import { nodeDescription } from './config/description';
-import { DEFAULT_CHAIN_ID, DEFAULT_SLIPPAGE, OPERATIONS } from './constants';
+import { getTokenDetails } from './functions/getTokenDetails';
 import { createToken } from './functions/createToken';
-import { extractTickers } from './functions/extractTickers';
 import { swapToken } from './functions/swapToken';
-import { OperationResult } from './types';
+import { OPERATIONS, DEFAULT_CHAIN_ID } from './constants';
 
-createConfig({
-	integrator: 'buildr',
-});
-
-dotenv.config();
-
-class BaseAgent implements INodeType {
-	description = nodeDescription;
+export class BaseAgent implements INodeType {
+	description: INodeTypeDescription = nodeDescription;
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
@@ -25,47 +16,40 @@ class BaseAgent implements INodeType {
 			try {
 				const operation = this.getNodeParameter('operation', i) as string;
 
-				let result: OperationResult;
-
+				let result;
 				switch (operation) {
-					case OPERATIONS.EXTRACT_TICKER:
+					case OPERATIONS.GET_TOKEN_DETAILS:
 						const ticker = this.getNodeParameter('ticker', i) as string;
-						const tokenInfo = await extractTickers(ticker);
-						result = {
-							success: true,
-							data: tokenInfo,
-						};
+						result = await getTokenDetails(ticker);
 						break;
+
 					case OPERATIONS.CREATE_TOKEN:
-						const tokenName = this.getNodeParameter('tokenName', i) as string;
-						const tokenSymbol = this.getNodeParameter('tokenSymbol', i) as string;
-						const decimals = this.getNodeParameter('decimals', i) as number;
-						const initialSupply = this.getNodeParameter('initialSupply', i) as number;
-						const tokenResult = await createToken(
-							{ tokenName, tokenSymbol, decimals, initialSupply },
-							DEFAULT_CHAIN_ID,
-						);
-						result = {
-							success: true,
-							data: tokenResult,
-						};
+						const name = this.getNodeParameter('name', i) as string;
+						const symbol = this.getNodeParameter('symbol', i) as string;
+						const totalSupply = this.getNodeParameter('totalSupply', i) as number;
+						result = await createToken({
+							tokenName: name,
+							tokenSymbol: symbol,
+							decimals: 18,
+							initialSupply: totalSupply,
+						}, DEFAULT_CHAIN_ID);
 						break;
+
 					case OPERATIONS.SWAP_TOKEN:
 						const fromToken = this.getNodeParameter('fromToken', i) as string;
 						const toToken = this.getNodeParameter('toToken', i) as string;
-						const amount = this.getNodeParameter('amount', i) as string;
-						const slippage = this.getNodeParameter('slippage', i, DEFAULT_SLIPPAGE) as number;
-						const swapResult = await swapToken(
-							{ fromToken, toToken, amount, slippage },
-							DEFAULT_CHAIN_ID,
-						);
-						result = {
-							success: true,
-							data: swapResult,
-						};
+						const amount = this.getNodeParameter('amount', i) as number;
+						const slippage = this.getNodeParameter('slippage', i) as number;
+						result = await swapToken({
+							fromToken,
+							toToken,
+							amount: amount.toString(),
+							slippage,
+						}, DEFAULT_CHAIN_ID);
 						break;
+
 					default:
-						throw new Error(`Operation ${operation} not supported`);
+						throw new Error(`Operation "${operation}" not supported`);
 				}
 
 				returnData.push({
@@ -75,7 +59,6 @@ class BaseAgent implements INodeType {
 				if (this.continueOnFail()) {
 					returnData.push({
 						json: {
-							success: false,
 							error: error.message,
 						},
 					});
@@ -88,5 +71,3 @@ class BaseAgent implements INodeType {
 		return [returnData];
 	}
 }
-
-export { BaseAgent };
