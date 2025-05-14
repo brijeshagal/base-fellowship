@@ -18,11 +18,15 @@ export class BaseAgent implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
-		// Get the private key from credentials
+		// Get the credentials
 		const credentials = await this.getCredentials('privateKey');
-		if (!credentials?.privateKey) {
-			throw new Error('Private key is required');
+		if (!credentials?.privateKey || !credentials?.rpcUrl) {
+			throw new Error('Private key and RPC URL are required');
 		}
+
+		// Set the environment variables for the functions to use
+		// process.env.PRIV_KEY = credentials.privateKey;
+		// process.env.ALCHEMY_BASE_API = credentials.rpcUrl || (process.env.ALCHEMY_BASE_API as string);
 
 		const privateKey = credentials.privateKey as Hex;
 
@@ -40,17 +44,14 @@ export class BaseAgent implements INodeType {
 					case OPERATIONS.CREATE_TOKEN:
 						const name = this.getNodeParameter('name', i) as string;
 						const symbol = this.getNodeParameter('symbol', i) as string;
+						const decimals = this.getNodeParameter('decimals', i) as number;
 						const totalSupply = this.getNodeParameter('totalSupply', i) as number;
-						result = await createToken(
-							{
-								tokenName: name,
-								tokenSymbol: symbol,
-								decimals: 18,
-								initialSupply: totalSupply,
-							},
-							DEFAULT_CHAIN_ID,
-							privateKey,
-						);
+						result = await createToken({
+							tokenName: name,
+							tokenSymbol: symbol,
+							decimals,
+							initialSupply: totalSupply,
+						}, DEFAULT_CHAIN_ID, privateKey);
 						break;
 
 					case OPERATIONS.SWAP_TOKEN:
@@ -58,16 +59,12 @@ export class BaseAgent implements INodeType {
 						const toToken = this.getNodeParameter('toToken', i) as string;
 						const amount = this.getNodeParameter('amount', i) as number;
 						const slippage = this.getNodeParameter('slippage', i) as number;
-						result = await swapToken(
-							{
-								fromToken,
-								toToken,
-								amount: amount.toString(),
-								slippage,
-							},
-							DEFAULT_CHAIN_ID,
-							privateKey,
-						);
+						result = await swapToken({
+							fromToken,
+							toToken,
+							amount: amount.toString(),
+							slippage,
+						}, DEFAULT_CHAIN_ID, privateKey);
 						break;
 
 					default:

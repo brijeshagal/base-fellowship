@@ -70,6 +70,19 @@ export const tokenCreationProperties: INodeProperties[] = [
         },
     },
     {
+        displayName: 'Decimals',
+        name: 'decimals',
+        type: 'number',
+        required: true,
+        default: 9,
+        description: 'Number of decimal places for the token',
+        displayOptions: {
+            show: {
+                operation: [OPERATIONS.CREATE_TOKEN],
+            },
+        },
+    },
+    {
         displayName: 'Total Supply',
         name: 'totalSupply',
         type: 'number',
