@@ -3,13 +3,36 @@ import {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
+	NodeConnectionType,
 } from 'n8n-workflow';
 import { Hex } from 'viem';
-import { nodeDescription } from './config/description';
+import { nodeProperties } from './config/properties';
 import { DEFAULT_CHAIN_ID, OPERATIONS } from './constants';
 import { createToken } from './functions/createToken';
 import { getTokenDetails } from './functions/getTokenDetails';
 import { swapToken } from './functions/swapToken';
+
+const nodeDescription: INodeTypeDescription = {
+	displayName: 'Base Agent',
+	name: 'baseAgent',
+	icon: 'file:base.svg',
+	group: ['transform'],
+	version: 1,
+	subtitle: '={{$parameter["operation"]}}',
+	description: 'Interact with Base on-chain AI agents',
+	defaults: {
+		name: 'Base Agent',
+	},
+	inputs: ['main'] as NodeConnectionType[],
+	outputs: ['main'] as NodeConnectionType[],
+	credentials: [
+		{
+			name: 'privateKeyApi',
+			required: true,
+		},
+	],
+	properties: nodeProperties,
+};
 
 export class BaseAgent implements INodeType {
 	description: INodeTypeDescription = nodeDescription;
@@ -21,7 +44,12 @@ export class BaseAgent implements INodeType {
 		// Get the credentials
 		const credentials = await this.getCredentials('privateKey');
 		if (!credentials?.privateKey || !credentials?.rpcUrl) {
-			throw new Error('Private key and RPC URL are required');
+			returnData.push({
+				json: {
+					error: 'Private key and RPC URL are required',
+				},
+			});
+			return [];
 		}
 
 		// Set the environment variables for the functions to use
@@ -46,12 +74,16 @@ export class BaseAgent implements INodeType {
 						const symbol = this.getNodeParameter('symbol', i) as string;
 						const decimals = this.getNodeParameter('decimals', i) as number;
 						const totalSupply = this.getNodeParameter('totalSupply', i) as number;
-						result = await createToken({
-							tokenName: name,
-							tokenSymbol: symbol,
-							decimals,
-							initialSupply: totalSupply,
-						}, DEFAULT_CHAIN_ID, privateKey);
+						result = await createToken(
+							{
+								tokenName: name,
+								tokenSymbol: symbol,
+								decimals,
+								initialSupply: totalSupply,
+							},
+							DEFAULT_CHAIN_ID,
+							privateKey,
+						);
 						break;
 
 					case OPERATIONS.SWAP_TOKEN:
@@ -59,16 +91,26 @@ export class BaseAgent implements INodeType {
 						const toToken = this.getNodeParameter('toToken', i) as string;
 						const amount = this.getNodeParameter('amount', i) as number;
 						const slippage = this.getNodeParameter('slippage', i) as number;
-						result = await swapToken({
-							fromToken,
-							toToken,
-							amount: amount.toString(),
-							slippage,
-						}, DEFAULT_CHAIN_ID, privateKey);
+						result = await swapToken(
+							{
+								fromToken,
+								toToken,
+								amount: amount.toString(),
+								slippage,
+							},
+							DEFAULT_CHAIN_ID,
+							privateKey,
+						);
 						break;
 
-					default:
-						throw new Error(`Operation "${operation}" not supported`);
+					default: {
+						returnData.push({
+							json: {
+								error: `Operation "${operation}" not supported`,
+							},
+						});
+						return [returnData];
+					}
 				}
 
 				returnData.push({

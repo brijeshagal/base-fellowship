@@ -3,9 +3,9 @@ import {
 	INodeProperties,
 } from 'n8n-workflow';
 
-export class PrivateKey implements ICredentialType {
-	name = 'privateKey';
-	displayName = 'Private Key';
+export class PrivateKeyApi implements ICredentialType {
+	name = 'privateKeyApi';
+	displayName = 'Private Key API';
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Private Key',
