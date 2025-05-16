@@ -1,4 +1,3 @@
-import { viem } from '@goat-sdk/wallet-viem';
 import { ChainId, getQuote } from '@lifi/sdk';
 import {
 	Address,
@@ -13,6 +12,39 @@ import {
 import { getTokenFromTicker } from '../moralis';
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 
+async function handleTokenApproval(
+	tokenAddress: Address,
+	account: any,
+	walletClient: any,
+	publicClient: any,
+	quote: any,
+): Promise<void> {
+	const approvedAmt = await publicClient.readContract({
+		abi: erc20Abi,
+		functionName: 'allowance',
+		address: tokenAddress,
+		args: [account.address, quote.estimate.approvalAddress as Address],
+	});
+
+	if (approvedAmt < BigInt(quote.estimate.fromAmount)) {
+		const approvalHash = await walletClient.writeContract({
+			account,
+			chain: viemChainsById[ChainId.BAS],
+			address: tokenAddress,
+			args: [quote.estimate.approvalAddress as Address, maxUint256],
+			functionName: 'approve',
+			abi: erc20Abi,
+		});
+
+		const approvalRes = await publicClient.waitForTransactionReceipt({
+			hash: approvalHash,
+		});
+
+		if (approvalRes.status !== 'success') {
+			throw new Error('Token approval failed');
+		}
+	}
+}
 export interface SwapTokenParams {
 	fromToken: string;
 	toToken: string;
@@ -27,7 +59,6 @@ export async function swapToken(
 ): Promise<any> {
 	const { account, walletClient } = getWalletClient(chainId, privKey);
 	const publicClient = getPublicClient(chainId);
-	const wallet = viem(walletClient);
 
 	const inputToken =
 		params.fromToken.toLowerCase() === 'eth'
@@ -40,7 +71,7 @@ export async function swapToken(
 			: await getTokenFromTicker(params.toToken);
 
 	const quote = await getQuote({
-		fromAddress: wallet.getAddress(),
+		fromAddress: walletClient.account?.address as Address,
 		fromChain: ChainId.BAS,
 		toChain: ChainId.BAS,
 		fromToken: inputToken.address,
@@ -76,38 +107,4 @@ export async function swapToken(
 		txnReceipt,
 		receivedAmount: formatUnits(receivedAmount, outputToken.decimals),
 	};
-}
-
-async function handleTokenApproval(
-	tokenAddress: Address,
-	account: any,
-	walletClient: any,
-	publicClient: any,
-	quote: any,
-): Promise<void> {
-	const approvedAmt = await publicClient.readContract({
-		abi: erc20Abi,
-		functionName: 'allowance',
-		address: tokenAddress,
-		args: [account.address, quote.estimate.approvalAddress as Address],
-	});
-
-	if (approvedAmt < BigInt(quote.estimate.fromAmount)) {
-		const approvalHash = await walletClient.writeContract({
-			account,
-			chain: viemChainsById[ChainId.BAS],
-			address: tokenAddress,
-			args: [quote.estimate.approvalAddress as Address, maxUint256],
-			functionName: 'approve',
-			abi: erc20Abi,
-		});
-
-		const approvalRes = await publicClient.waitForTransactionReceipt({
-			hash: approvalHash,
-		});
-
-		if (approvalRes.status !== 'success') {
-			throw new Error('Token approval failed');
-		}
-	}
 }
