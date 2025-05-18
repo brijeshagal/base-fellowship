@@ -58,6 +58,7 @@
 	},
 	"dependencies": {
 		"@lifi/sdk": "^3.6.13",
+		"axios": "^1.9.0",
 		"dotenv": "^16.5.0",
 		"moralis": "^2.27.2",
 		"viem": "^2.29.0"

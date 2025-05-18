@@ -23,6 +23,21 @@ export const operationProperty: INodeProperties = {
 			value: OPERATIONS.SWAP_TOKEN,
 			description: 'Swap one token for another',
 		},
+		{
+			name: OPERATIONS.GET_ABI,
+			value: OPERATIONS.GET_ABI,
+			description: 'Get the ABI for a contract address',
+		},
+		{
+			name: OPERATIONS.CREATE_NFT,
+			value: OPERATIONS.CREATE_NFT,
+			description: 'Deploy a new ERC721 NFT contract',
+		},
+		{
+			name: OPERATIONS.GET_CURRENT_PRICE,
+			value: OPERATIONS.GET_CURRENT_PRICE,
+			description: 'Get the current price of a token',
+		},
 	],
 };
 
@@ -153,9 +168,86 @@ export const swapTokenProperties: INodeProperties[] = [
 	},
 ];
 
+export const getAbiProperties: INodeProperties[] = [
+	{
+		displayName: 'Contract Address',
+		name: 'contractAddress',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'The address of the contract to get the ABI for',
+		displayOptions: {
+			show: {
+				operation: [OPERATIONS.GET_ABI],
+			},
+		},
+	},
+];
+
+export const createNFTProperties: INodeProperties[] = [
+	{
+		displayName: 'NFT Name',
+		name: 'name',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'The name of the NFT collection',
+		displayOptions: {
+			show: {
+				operation: [OPERATIONS.CREATE_NFT],
+			},
+		},
+	},
+	{
+		displayName: 'NFT Symbol',
+		name: 'symbol',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'The symbol of the NFT collection',
+		displayOptions: {
+			show: {
+				operation: [OPERATIONS.CREATE_NFT],
+			},
+		},
+	},
+	{
+		displayName: 'Base URI',
+		name: 'baseURI',
+		type: 'string',
+		required: false,
+		default: '',
+		description: 'The base URI for the NFT metadata',
+		displayOptions: {
+			show: {
+				operation: [OPERATIONS.CREATE_NFT],
+			},
+		},
+	},
+];
+
+export const getCurrentPriceProperties: INodeProperties[] = [
+	{
+		displayName: 'Token Symbol',
+		name: 'tokenSymbol',
+		type: 'string',
+		required: true,
+		default: '',
+		description: 'The token symbol to get the price for (e.g., ETH, USDC, DAI)',
+		displayOptions: {
+			show: {
+				operation: [OPERATIONS.GET_CURRENT_PRICE],
+			},
+		},
+	},
+];
+
 export const nodeProperties: INodeProperties[] = [
 	operationProperty,
 	...tokenDetailsProperties,
 	...tokenCreationProperties,
 	...swapTokenProperties,
+	...getAbiProperties,
+	...createNFTProperties,
+	...getCurrentPriceProperties,
 ];

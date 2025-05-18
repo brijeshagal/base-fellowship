@@ -1,16 +1,20 @@
-import {
+import type {
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
 	NodeConnectionType,
 } from 'n8n-workflow';
-import { Hex } from 'viem';
+import type { Hex } from 'viem';
+
 import { nodeProperties } from './config/properties';
 import { DEFAULT_CHAIN_ID, OPERATIONS } from './constants';
 import { createToken } from './functions/createToken';
 import { getTokenDetails } from './functions/getTokenDetails';
 import { swapToken } from './functions/swapToken';
+import { getAbi } from './functions/getAbi';
+import { createNFT } from './functions/createNFT';
+import { getCurrentPrice } from './functions/getCurrentPrice';
 
 const nodeDescription: INodeTypeDescription = {
 	displayName: 'Base Agent',
@@ -30,6 +34,10 @@ const nodeDescription: INodeTypeDescription = {
 			name: 'privateKeyApi',
 			required: true,
 		},
+		{
+			name: 'baseScanApi',
+			required: false,
+		},
 	],
 	properties: nodeProperties,
 };
@@ -43,6 +51,8 @@ export class BaseAgent implements INodeType {
 
 		// Get the credentials
 		const credentials = await this.getCredentials('privateKey');
+		const baseScanCredentials = await this.getCredentials('baseScanApi');
+		
 		if (!credentials?.privateKey || !credentials?.rpcUrl) {
 			returnData.push({
 				json: {
@@ -52,11 +62,8 @@ export class BaseAgent implements INodeType {
 			return [];
 		}
 
-		// Set the environment variables for the functions to use
-		// process.env.PRIV_KEY = credentials.privateKey;
-		// process.env.ALCHEMY_BASE_API = credentials.rpcUrl || (process.env.ALCHEMY_BASE_API as string);
-
 		const privateKey = credentials.privateKey as Hex;
+		const baseScanApiKey = baseScanCredentials?.apiKey as string | undefined;
 
 		for (let i = 0; i < items.length; i++) {
 			try {
@@ -101,6 +108,31 @@ export class BaseAgent implements INodeType {
 							DEFAULT_CHAIN_ID,
 							privateKey,
 						);
+						break;
+
+					case OPERATIONS.GET_ABI:
+						const contractAddress = this.getNodeParameter('contractAddress', i) as string;
+						result = await getAbi(contractAddress, DEFAULT_CHAIN_ID, baseScanApiKey);
+						break;
+
+					case OPERATIONS.CREATE_NFT:
+						const nftName = this.getNodeParameter('name', i) as string;
+						const nftSymbol = this.getNodeParameter('symbol', i) as string;
+						const baseURI = this.getNodeParameter('baseURI', i) as string;
+						result = await createNFT(
+							{
+								name: nftName,
+								symbol: nftSymbol,
+								baseURI,
+							},
+							DEFAULT_CHAIN_ID,
+							privateKey,
+						);
+						break;
+
+					case OPERATIONS.GET_CURRENT_PRICE:
+						const tokenSymbol = this.getNodeParameter('tokenSymbol', i) as string;
+						result = await getCurrentPrice(tokenSymbol);
 						break;
 
 					default: {

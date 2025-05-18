@@ -12,6 +12,14 @@ import {
 import { getTokenFromTicker } from '../moralis';
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 
+export interface SwapTokenParams {
+	fromToken: string;
+	toToken: string;
+	amount: string;
+	slippage: number;
+}
+
+
 async function handleTokenApproval(
 	tokenAddress: Address,
 	account: any,
@@ -44,12 +52,6 @@ async function handleTokenApproval(
 			throw new Error('Token approval failed');
 		}
 	}
-}
-export interface SwapTokenParams {
-	fromToken: string;
-	toToken: string;
-	amount: string;
-	slippage: number;
 }
 
 export async function swapToken(
@@ -108,3 +110,4 @@ export async function swapToken(
 		receivedAmount: formatUnits(receivedAmount, outputToken.decimals),
 	};
 }
+

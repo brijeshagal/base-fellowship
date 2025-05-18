@@ -1,11 +1,15 @@
-import {
+import type {
 	ICredentialType,
 	INodeProperties,
 } from 'n8n-workflow';
 
 export class PrivateKeyApi implements ICredentialType {
 	name = 'privateKeyApi';
+
 	displayName = 'Private Key API';
+
+	documentationUrl = 'https://github.com/brijeshagal/base-fellowship';
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Private Key',
