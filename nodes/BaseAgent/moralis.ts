@@ -6,27 +6,27 @@ dotenv.config();
 let isMoralisInitialized = false;
 
 export async function getTokenFromTicker(symbol: string) {
-	try {
-		if (!isMoralisInitialized) {
-			await Moralis.start({
-				apiKey: process.env.MORALIS_API_KEY,
-			});
-			isMoralisInitialized = true;
-		}
+  try {
+    if (!isMoralisInitialized) {
+      await Moralis.start({
+        apiKey: process.env.MORALIS_API_KEY,
+      });
+      isMoralisInitialized = true;
+    }
 
-		const response = await Moralis.EvmApi.token.getTokenMetadataBySymbol({
-			symbols: [symbol],
-			chain: toHex(8453),
-		});
+    const response = await Moralis.EvmApi.token.getTokenMetadataBySymbol({
+      symbols: [symbol],
+      chain: toHex(8453),
+    });
 
-		console.log(response.raw[0]);
-		if (response.raw[0]) {
-			return response.raw[0] as any;
-		}
-	} catch (e) {
-		console.error(e);
-		return {};
-	}
+    if (response.raw[0]) {
+      return response.raw[0] as any
+    }
+    return {}
+  } catch (e) {
+    console.error(e);
+    return {};
+  }
 }
 
 /**

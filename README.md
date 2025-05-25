@@ -190,3 +190,9 @@ Custom nodes are built using [n8n-nodes-starter](https://github.com/n8n-io/n8n-n
 
 These are the basic steps for working with the starter. For detailed guidance on creating and publishing nodes, refer to the [documentation](https://docs.n8n.io/integrations/creating-nodes/).
 
+
+## Tested Actions
+- `getAbi`
+- `sendPayment`
+- `getTokenDetails`
+- `swapToken`

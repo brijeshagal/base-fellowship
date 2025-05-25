@@ -1,26 +1,72 @@
 import axios from 'axios';
+import dotenv from 'dotenv';
+import { isAddress, zeroAddress } from 'viem';
+import { getTokenDetails } from './getTokenDetails';
 
-export async function getCurrentPrice(tokenSymbol: string): Promise<any> {
-  try {
-    const response = await axios.get(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${tokenSymbol.toLowerCase()}&vs_currencies=usd`
-    );
+dotenv.config();
 
-    const price = response.data[tokenSymbol.toLowerCase()]?.usd;
-    if (!price) throw new Error(`Price not found for ${tokenSymbol}`);
+export async function getCurrentPriceByAddress(
+	contractAddress: string,
+	chain: string = 'base', // default to Base chain
+	apiKey = process.env.COINGECKO_API_KEY, // optional CoinGecko API key
+): Promise<any> {
+	try {
+		let normalizedAddress = "";
+		if (isAddress(contractAddress)) {
+			normalizedAddress = contractAddress.toLowerCase();
+		} else {
+			const tokenDetails = await getTokenDetails(contractAddress);
+			if (tokenDetails && typeof tokenDetails === 'object' && 'address' in tokenDetails) {
+				normalizedAddress = tokenDetails.address as string;
+			} else {
+				throw new Error(`Token not found for contract address: ${contractAddress}`);
+			}
+		}
 
-    return {
-      success: true,
-      data: {
-        symbol: tokenSymbol,
-        price: price.toString(),
-        lastUpdated: new Date().toISOString()
-      }
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
+		const headers: Record<string, string> = {
+			accept: 'application/json',
+		};
+
+		if (apiKey) {
+			headers['x-cg-demo-api-key'] = apiKey;
+		}
+
+		let url: string;
+		if (normalizedAddress === zeroAddress) {
+			// For ETH (zero address), use the simple price endpoint
+			url = `https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd`;
+		} else {
+			// For ERC20 tokens, use the token price endpoint
+			url = `https://api.coingecko.com/api/v3/simple/token_price/${chain}?contract_addresses=${normalizedAddress}&vs_currencies=usd`;
+		}
+
+		const response = await axios.get(url, { headers });
+
+		console.log(response.data)
+
+		let price;
+		if (normalizedAddress === '0x0000000000000000000000000000000000000000') {
+			price = response.data?.ethereum?.usd;
+		} else {
+			price = response.data?.[normalizedAddress]?.usd;
+		}
+
+		if (price === undefined) {
+			throw new Error(`Price not found for contract address: ${contractAddress}`);
+		}
+
+		return {
+			success: true,
+			data: {
+				address: contractAddress,
+				price: price.toString(),
+				lastUpdated: new Date().toISOString(),
+			},
+		};
+	} catch (error: any) {
+		return {
+			success: false,
+			error: error.message,
+		};
+	}
 }

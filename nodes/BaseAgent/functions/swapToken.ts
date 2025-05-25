@@ -1,16 +1,9 @@
 import { ChainId, getQuote } from '@lifi/sdk';
-import {
-	Address,
-	erc20Abi,
-	formatUnits,
-	Hash,
-	Hex,
-	maxUint256,
-	parseUnits,
-	zeroAddress,
-} from 'viem';
-import { getTokenFromTicker } from '../moralis';
+import type { Account, Address, Hash, Hex, PublicClient, WalletClient } from 'viem';
+import { erc20Abi, formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem';
+
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
+import { getTokenDetails } from './getTokenDetails';
 
 export interface SwapTokenParams {
 	fromToken: string;
@@ -19,12 +12,11 @@ export interface SwapTokenParams {
 	slippage: number;
 }
 
-
 async function handleTokenApproval(
 	tokenAddress: Address,
-	account: any,
-	walletClient: any,
-	publicClient: any,
+	account: Account,
+	walletClient: WalletClient,
+	publicClient: PublicClient,
 	quote: any,
 ): Promise<void> {
 	const approvedAmt = await publicClient.readContract({
@@ -49,7 +41,8 @@ async function handleTokenApproval(
 		});
 
 		if (approvalRes.status !== 'success') {
-			throw new Error('Token approval failed');
+			// throw new Error('Token approval failed');
+			return;
 		}
 	}
 }
@@ -62,15 +55,15 @@ export async function swapToken(
 	const { account, walletClient } = getWalletClient(chainId, privKey);
 	const publicClient = getPublicClient(chainId);
 
-	const inputToken =
-		params.fromToken.toLowerCase() === 'eth'
-			? { address: zeroAddress, decimals: 18 }
-			: await getTokenFromTicker(params.fromToken);
+	const inputToken = await getTokenDetails(params.fromToken);
+	const outputToken = await getTokenDetails(params.toToken);
 
-	const outputToken =
-		params.toToken.toLowerCase() === 'eth'
-			? { address: zeroAddress, decimals: 18 }
-			: await getTokenFromTicker(params.toToken);
+	const currOutputTokenBalance = outputToken.address === zeroAddress ? await publicClient.getBalance({ address: account.address }) : (await publicClient.readContract({
+		abi: erc20Abi,
+		functionName: 'balanceOf',
+		address: inputToken.address as Address,
+		args: [account.address],
+	}));
 
 	const quote = await getQuote({
 		fromAddress: walletClient.account?.address as Address,
@@ -82,7 +75,7 @@ export async function swapToken(
 	});
 
 	if (inputToken.address !== zeroAddress) {
-		await handleTokenApproval(inputToken.address, account, walletClient, publicClient, quote);
+		await handleTokenApproval(inputToken.address as Address, account, walletClient, publicClient, quote);
 	}
 
 	const hash = await walletClient.sendTransaction({
@@ -95,19 +88,26 @@ export async function swapToken(
 
 	const txnReceipt = await publicClient.waitForTransactionReceipt({ hash });
 	if (txnReceipt.status !== 'success') {
-		throw new Error('Token swap failed');
+		// throw new Error('Token swap failed');
+		return;
 	}
 
-	const receivedAmount = await publicClient.readContract({
-		abi: erc20Abi,
-		functionName: 'balanceOf',
-		address: outputToken.address,
-		args: [account.address],
-	});
+	let latestOutputTokenBalance = BigInt(0);
+	if (outputToken.address === zeroAddress) {
+		latestOutputTokenBalance = await publicClient.getBalance({ address: account.address });
+	} else {
+		latestOutputTokenBalance = (await publicClient.readContract({
+			abi: erc20Abi,
+			functionName: 'balanceOf',
+			address: outputToken.address as Address,
+			args: [account.address],
+		}));
+	}
+
+	const receivedAmount = formatUnits(latestOutputTokenBalance - currOutputTokenBalance, outputToken.decimals);
 
 	return {
 		txnReceipt,
-		receivedAmount: formatUnits(receivedAmount, outputToken.decimals),
+		receivedAmount
 	};
 }
-

@@ -1,12 +1,5 @@
 import dotenv from 'dotenv';
-import {
-	Account,
-	createPublicClient,
-	createWalletClient,
-	Hex,
-	http,
-	WalletClient
-} from 'viem';
+import { Account, createPublicClient, createWalletClient, Hex, http, WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as allViemChains from 'viem/chains';
 
