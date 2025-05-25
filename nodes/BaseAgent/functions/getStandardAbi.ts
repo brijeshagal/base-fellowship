@@ -18,7 +18,7 @@ export async function getStandardAbi(params: GetStandardAbiParams): Promise<{ ab
 
 	try {
 		let abi;
-		switch (abiType) {
+		switch (abiType.toLowerCase()) {
 			case STANDARD_ABIS.ERC20:
 				abi = erc20Abi;
 				break;
