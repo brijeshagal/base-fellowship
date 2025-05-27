@@ -2,8 +2,8 @@ import { ChainId, getQuote } from '@lifi/sdk';
 import type { Account, Address, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { erc20Abi, formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem';
 
-import { getTokenDetails } from './getTokenDetails';
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
+import { getTokenDetails } from './getTokenDetails';
 
 export interface SwapTokenParams {
 	fromToken: string;
@@ -58,12 +58,18 @@ export async function swapToken(
 	const inputToken = await getTokenDetails(params.fromToken);
 	const outputToken = await getTokenDetails(params.toToken);
 
-	const currOutputTokenBalance = outputToken.address === zeroAddress ? await publicClient.getBalance({ address: account.address }) : (await publicClient.readContract({
-		abi: erc20Abi,
-		functionName: 'balanceOf',
-		address: inputToken.address as Address,
-		args: [account.address],
-	}));
+	let currOutputTokenBalance = BigInt(0);
+
+	if (outputToken.address === zeroAddress) {
+		currOutputTokenBalance = await publicClient.getBalance({ address: account.address });
+	} else {
+		currOutputTokenBalance = await publicClient.readContract({
+			abi: erc20Abi,
+			functionName: 'balanceOf',
+			address: outputToken.address as Address,
+			args: [account.address],
+		});
+	}
 
 	const quote = await getQuote({
 		fromAddress: walletClient.account?.address as Address,
