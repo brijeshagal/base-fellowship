@@ -196,3 +196,5 @@ These are the basic steps for working with the starter. For detailed guidance on
 - `sendPayment`
 - `getTokenDetails`
 - `swapToken`
+- `getStandardAbi`
+- 

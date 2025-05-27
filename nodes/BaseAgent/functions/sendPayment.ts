@@ -1,6 +1,7 @@
 import { ChainId } from '@lifi/sdk';
 import type { Hex } from 'viem';
 import { erc20Abi, parseEther, zeroAddress } from 'viem';
+
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 
 interface SendPaymentParams {
@@ -27,7 +28,7 @@ export async function sendPayment(params: SendPaymentParams, privateKey: Hex) {
 		});
 
 		const receipt = await publicClient.waitForTransactionReceipt({
-			hash: hash,
+			hash,
 		});
 
 		return {
@@ -44,7 +45,7 @@ export async function sendPayment(params: SendPaymentParams, privateKey: Hex) {
 		});
 
 		const receipt = await publicClient.waitForTransactionReceipt({
-			hash: hash,
+			hash,
 		});
 
 		return {

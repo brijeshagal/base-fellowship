@@ -1,4 +1,6 @@
+import { ApplicationError } from 'n8n-workflow';
 import { zeroAddress } from 'viem';
+
 import { getTokenFromTicker } from '../moralis';
 
 export interface TokenDetails {
@@ -26,6 +28,6 @@ export async function getTokenDetails(ticker: string): Promise<TokenDetails> {
 			symbol: ticker.toUpperCase(),
 		};
 	} catch (error) {
-		throw new Error(`Failed to get token details for ${ticker}: ${error.message}`);
+		throw new ApplicationError(`Failed to get token details for ${ticker}: ${error.message}`);
 	}
 }

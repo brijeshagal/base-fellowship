@@ -2,8 +2,8 @@ import { ChainId, getQuote } from '@lifi/sdk';
 import type { Account, Address, Hash, Hex, PublicClient, WalletClient } from 'viem';
 import { erc20Abi, formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem';
 
-import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 import { getTokenDetails } from './getTokenDetails';
+import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 
 export interface SwapTokenParams {
 	fromToken: string;

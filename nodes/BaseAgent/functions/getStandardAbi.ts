@@ -1,5 +1,5 @@
 import { ApplicationError } from 'n8n-workflow';
-import { erc20Abi, erc721Abi, erc1155Abi, Abi } from 'viem';
+import { erc20Abi, erc721Abi, erc1155Abi, type Abi } from 'viem';
 
 export const STANDARD_ABIS = {
 	ERC20: 'erc20',

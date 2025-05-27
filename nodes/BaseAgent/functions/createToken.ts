@@ -1,4 +1,6 @@
-import { erc20Abi, Hex } from 'viem';
+import { ApplicationError } from 'n8n-workflow';
+import { erc20Abi, type Hex } from 'viem';
+
 import { getPublicClient, getWalletClient, viemChainsById } from '../utils/clients';
 
 export interface TokenCreationParams {
@@ -30,7 +32,7 @@ export async function createToken(
 
 	const txnReceipt = await publicClient.waitForTransactionReceipt({ hash });
 	if (txnReceipt.status !== 'success') {
-		throw new Error('Token creation failed');
+		throw new ApplicationError('Token creation failed');
 	}
 
 	return txnReceipt;

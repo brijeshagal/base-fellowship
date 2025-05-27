@@ -1,4 +1,7 @@
 import axios from 'axios';
+import { ApplicationError } from 'n8n-workflow';
+import { type Abi } from 'viem';
+
 import { getPublicClient } from '../utils/clients';
 
 export async function getAbi(
@@ -14,15 +17,15 @@ export async function getAbi(
 			const data = response.data;
 
 			if (data.status === '0') {
-				throw new Error(data.message || 'Failed to fetch ABI from BaseScan');
+				throw new ApplicationError(data.message || 'Failed to fetch ABI from BaseScan');
 			}
 
-			const abi = JSON.parse(data.result);
+			const abi = JSON.parse(data.result) as Abi;
 			return {
 				success: true,
 				data: {
 					address: contractAddress,
-					abi: abi,
+					abi,
 				},
 			};
 		} else {
@@ -33,14 +36,14 @@ export async function getAbi(
 			});
 
 			if (!bytecode) {
-				throw new Error('Contract not found or no bytecode available');
+				throw new ApplicationError('Contract not found or no bytecode available');
 			}
 
 			return {
 				success: true,
 				data: {
 					address: contractAddress,
-					bytecode: bytecode,
+					bytecode,
 					note: 'No BaseScan API key provided. Only bytecode is available.',
 				},
 			};

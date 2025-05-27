@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import { createWalletClient, http, parseEther } from 'viem';
-import { Address, privateKeyToAccount } from 'viem/accounts';
+import { type Address, privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
+
 import { getPublicClient } from '../clients';
 
 dotenv.config();
@@ -16,7 +17,7 @@ export async function sendFundsToAgent(agentAddress: string) {
 	const value = parseEther('0.001');
 	console.log({ value });
 	const hash = await walletClient.sendTransaction({
-		address: acc.address as Address,
+		address: acc.address,
 		value,
 		to: agentAddress as Address,
 	});
